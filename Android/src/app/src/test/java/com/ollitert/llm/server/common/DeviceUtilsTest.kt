@@ -1,6 +1,5 @@
 /*
- * Copyright 2025 Google LLC
- * Modifications Copyright 2025-2026 @NightMean (https://github.com/NightMean)
+ * Copyright 2026 @NightMean (https://github.com/NightMean)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,21 +16,15 @@
 
 package com.ollitert.llm.server.common
 
-import android.os.Build
+import org.junit.Assert.assertEquals
+import org.junit.Test
 
-/** Platform SoC identifier in lowercase; unknown before Android 12, never guessed from board names. */
-val SOC: String by lazy {
-  if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-    Build.SOC_MODEL.lowercase()
-  } else {
-    Build.UNKNOWN
+class DeviceUtilsTest {
+
+  @Test
+  fun socIsUnknownWithoutAndroid12Metadata() {
+    // JVM Android stubs have no SoC metadata; the emulator tests cover real API levels.
+    assertEquals("unknown", SOC)
+    assertEquals(SOC, com.ollitert.llm.server.data.prefs.SOC)
   }
-}
-
-fun isPixelDevice(): Boolean {
-  return Build.MODEL != null && Build.MODEL.lowercase().contains("pixel")
-}
-
-fun isPixel10(): Boolean {
-  return Build.MODEL != null && Build.MODEL.lowercase().contains("pixel 10")
 }

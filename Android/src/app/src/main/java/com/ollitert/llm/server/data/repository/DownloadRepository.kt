@@ -264,7 +264,7 @@ class DownloadRepository @Inject constructor(
     val channelId = "download_notification"
     val channelName = context.getString(R.string.notif_channel_download_name)
 
-    // Create the NotificationChannel (always available since minSdk 31)
+    // Notification channels are available on all supported Android versions.
     val importance = NotificationManager.IMPORTANCE_HIGH
     val channel = NotificationChannel(channelId, channelName, importance)
     val notificationManager =

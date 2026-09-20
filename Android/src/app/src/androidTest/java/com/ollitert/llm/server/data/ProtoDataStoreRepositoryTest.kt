@@ -19,6 +19,9 @@ package com.ollitert.llm.server.data
 import androidx.datastore.core.DataStoreFactory
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import com.ollitert.llm.server.data.prefs.BenchmarkResultsSerializer
+import com.ollitert.llm.server.data.prefs.SettingsSerializer
+import com.ollitert.llm.server.data.repository.DefaultProtoDataStoreRepository
 import com.ollitert.llm.server.proto.BenchmarkResult
 import com.ollitert.llm.server.proto.ImportedModel
 import com.ollitert.llm.server.proto.LlmBenchmarkBasicInfo
