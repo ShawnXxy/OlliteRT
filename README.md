@@ -152,6 +152,10 @@ Full API docs and examples: **[docs/api/API.md](docs/api/API.md)**
 
 ## Building from Source
 
+Open the **repository root** in Android Studio and let Gradle sync. The root
+project includes the existing Android build; select its `app` module and the
+`devDebug` variant for development. Opening `Android/src` directly still works.
+
 - **[Building](docs/BUILDING.md)** — build instructions, signing setup, lint, and tests
 - **[Architecture](docs/ARCHITECTURE.md)** — package structure, request flow, and dependency list
 

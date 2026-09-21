@@ -4,10 +4,22 @@ on:
   push:
     paths:
       - 'Android/src/**'
+      - 'build.gradle.kts'
+      - 'settings.gradle.kts'
+      - 'gradle.properties'
+      - 'gradle/**'
+      - 'gradlew'
+      - 'gradlew.bat'
       - '.github/workflows/jvm-tests.yml'
   pull_request:
     paths:
       - 'Android/src/**'
+      - 'build.gradle.kts'
+      - 'settings.gradle.kts'
+      - 'gradle.properties'
+      - 'gradle/**'
+      - 'gradlew'
+      - 'gradlew.bat'
       - '.github/workflows/jvm-tests.yml'
   workflow_dispatch:
 
@@ -46,11 +58,19 @@ jobs:
           sdkmanager --licenses < /dev/null > /dev/null || true
           sdkmanager "platforms;android-36" "build-tools;36.0.0" "platform-tools"
 
-      - name: Ensure Gradle wrapper is executable
-        run: chmod +x ./gradlew
+      - name: Ensure Gradle wrappers are executable
+        working-directory: .
+        run: chmod +x ./gradlew ./Android/src/gradlew
 
-      - name: Compile stableDebug
-        run: ./gradlew --no-daemon :app:compileStableDebugKotlin
+      - name: Check Gradle wrapper versions
+        working-directory: .
+        run: |
+          diff <(grep '^distributionUrl=' gradle/wrapper/gradle-wrapper.properties) \
+               <(grep '^distributionUrl=' Android/src/gradle/wrapper/gradle-wrapper.properties)
+
+      - name: Compile stableDebug from repository root
+        working-directory: .
+        run: ./gradlew --no-daemon :android:app:compileStableDebugKotlin
 
       - name: Run JVM unit tests
         run: ./gradlew --no-daemon :app:testStableDebugUnitTest

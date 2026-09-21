@@ -3,6 +3,7 @@
 ## Table of Contents
 
 - [Prerequisites](#prerequisites)
+- [Android Studio: Repository Root](#android-studio-repository-root)
 - [Quick Start](#quick-start)
 - [Android 11 Compatibility Attempt](#android-11-compatibility-attempt)
 - [Product Flavors](#product-flavors)
@@ -20,7 +21,7 @@
 - **Android Studio** (latest stable) or the Android SDK command-line tools
 - **JDK 21** — required by AGP 9.x. Android Studio bundles a compatible JBR. The bytecode target is Java 11.
 - **Android SDK** — API level 36 (`compileSdk 36`), target SDK 35
-- **Gradle** 9.4.1 (bundled via wrapper)
+- **Gradle** 9.5.0 (bundled via wrapper)
 - **Git** — required at build time to embed the commit hash in `BuildConfig.GIT_HASH` and for auto-versioning (`APP_VERSION_CODE=auto`)
 - **LiteRT LM SDK** — bundled via Gradle dependency (see [SDK Compatibility](SDK_COMPATIBILITY.md) for version mapping)
 - **Minimum SDK** — Android 11 (API 30), experimental; Android 12+ remains recommended
@@ -37,10 +38,52 @@ This file is gitignored — every developer sets their own path.
 
 For the internal architecture, package structure, threading model, and request flow, see **[ARCHITECTURE.md](ARCHITECTURE.md)**.
 
+## Android Studio: Repository Root
+
+Use **File > Open** and select the repository root (the folder containing
+`README.md` and the root `settings.gradle.kts`). Wait for Gradle sync to finish.
+The root project, `OlliteRT`, includes the existing Android build as `android`;
+Android Studio can discover its `app` module and run configurations.
+
+Select the `app` module's **devDebug** build variant for development, then select
+the intended device. Do not use **Import Module** to copy `Android/src` into the
+root, and do not create a run configuration before Gradle sync has completed.
+If the root was already open as a plain folder before these Gradle files were
+added, close that project and reopen the same repository root.
+
+Opening `Android/src` directly remains supported. Both entry points use the
+same Android build, so application code, dependencies, flavors, signing, and
+output directories do not move or get duplicated:
+
+| Configuration or output | Location relative to the repository root |
+|:------------------------|:-----------------------------------------|
+| Android SDK path | `Android/src/local.properties` |
+| App version and Android build properties | `Android/src/gradle.properties` |
+| Dependency versions | `Android/src/gradle/libs.versions.toml` |
+| Local release signing properties | `Android/src/keystore.properties` |
+| APKs | `Android/src/app/build/outputs/apk/` |
+
+The root `gradle.properties` configures the Gradle daemon and build caching, not
+the app. Keep Android-specific settings in `Android/src`.
+
 ## Quick Start
 
 > [!IMPORTANT]
 > These instructions use Linux/macOS shell syntax. On **Windows**, use `gradlew.bat` instead of `./gradlew`, and set environment variables with `set JAVA_HOME=...` (cmd) or `$env:JAVA_HOME = "..."` (PowerShell) instead of `export`.
+
+From the **repository root**, on Windows PowerShell:
+
+```powershell
+.\gradlew.bat :android:app:assembleDevDebug
+```
+
+Root task paths include the `:android` prefix because Android is an included
+Gradle build. For example, root `:android:app:lintDevDebug` is the same Android
+task as `:app:lintDevDebug` when run inside `Android/src`. Command-line `-P`
+properties can be passed through either entry point.
+
+The existing nested entry point is unchanged. Unless stated otherwise, the
+remaining command examples in this guide run from `Android/src`:
 
 ```bash
 cd Android/src
@@ -57,6 +100,18 @@ If your Java or Android SDK paths differ from the defaults, override them:
 ```bash
 JAVA_HOME="/path/to/jbr" ANDROID_HOME="/path/to/sdk" ./gradlew :app:assembleStableDebug
 ```
+
+### Keeping the wrappers aligned
+
+The Android wrapper's distribution URL is the version source of truth. After
+updating that wrapper, regenerate the root wrapper from the repository root:
+
+```powershell
+.\Android\src\gradlew.bat --project-dir . wrapper
+```
+
+The root `wrapper` task reads the Android wrapper's distribution URL rather
+than maintaining a separate Gradle version in its build script.
 
 ### APK Output
 
