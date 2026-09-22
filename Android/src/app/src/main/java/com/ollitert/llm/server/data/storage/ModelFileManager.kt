@@ -20,6 +20,7 @@ import com.ollitert.llm.server.data.model.IMPORTS_DIR
 import com.ollitert.llm.server.data.model.Model
 import com.ollitert.llm.server.data.model.ModelDownloadStatus
 import com.ollitert.llm.server.data.model.ModelDownloadStatusType
+import com.ollitert.llm.server.data.download.modelScopeFallback
 
 import android.content.Context
 import android.util.Log
@@ -102,9 +103,13 @@ class ModelFileManager(
     if (model.localModelFilePathOverride.isNotEmpty()) {
       return false
     }
-    val tmpFilePath =
-      model.getPath(context = context, fileName = "${model.downloadFileName}.$TMP_FILE_EXT")
-    return File(tmpFilePath).exists()
+    return partialDownloadFile(model) != null
+  }
+
+  private fun partialDownloadFile(model: Model): File? {
+    val primary = File(model.getPath(context = context, fileName = "${model.downloadFileName}.$TMP_FILE_EXT"))
+    val mirror = modelScopeFallback(model.url)?.let { modelScopeStagingFile(primary, it.sha256) }
+    return listOfNotNull(mirror, primary).firstOrNull { it.isFile }
   }
 
   fun isModelDownloaded(model: Model): Boolean {
@@ -171,10 +176,7 @@ class ModelFileManager(
 
     if (isModelPartiallyDownloaded(model = model)) {
       status = ModelDownloadStatusType.PARTIALLY_DOWNLOADED
-      val tmpFilePath =
-        model.getPath(context = context, fileName = "${model.downloadFileName}.$TMP_FILE_EXT")
-      val tmpFile = File(tmpFilePath)
-      receivedBytes = tmpFile.length()
+      receivedBytes = partialDownloadFile(model)?.length() ?: 0L
       totalBytes = model.totalBytes
       Log.d(TAG, "${model.name} is partially downloaded. $receivedBytes/$totalBytes")
     } else if (isModelDownloaded(model = model)) {

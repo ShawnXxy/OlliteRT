@@ -117,7 +117,7 @@ fun fetchBoundedResult(
 
 sealed class ModelUrlResult {
   data class Success(val code: Int) : ModelUrlResult()
-  data class Error(val message: String) : ModelUrlResult()
+  data class Error(val message: String, val retryable: Boolean = false) : ModelUrlResult()
 }
 
 internal fun probeModelUrl(
@@ -160,8 +160,13 @@ internal fun probeModelUrl(
       return ModelUrlResult.Success(redirectConnection.responseCode)
     }
     return ModelUrlResult.Success(responseCode)
+  } catch (e: kotlinx.coroutines.CancellationException) {
+    throw e
   } catch (e: Exception) {
-    return ModelUrlResult.Error(e.message ?: "Unknown network error")
+    return ModelUrlResult.Error(
+      e.message ?: "Unknown network error",
+      retryable = com.ollitert.llm.server.data.download.isTransientDownloadFailure(e),
+    )
   } finally {
     connection?.disconnect()
     redirectConnection?.disconnect()
@@ -191,4 +196,3 @@ internal fun isHuggingFaceUrl(url: String): Boolean {
 
 private fun defaultOpenConnection(url: String): HttpURLConnection =
   URL(url).openConnection() as HttpURLConnection
-

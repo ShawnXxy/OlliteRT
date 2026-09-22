@@ -25,9 +25,33 @@ import io.mockk.mockk
 import io.mockk.verify
 import java.net.HttpURLConnection
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class ModelUrlProbeTest {
+
+  @Test
+  fun actualNetworkExceptionsAreClassifiedWithoutParsingTheirMessages() {
+    val result = probeModelUrl("https://huggingface.co/model", null) {
+      throw java.net.UnknownHostException("localized error")
+    }
+    assertTrue((result as ModelUrlResult.Error).retryable)
+    val tls = probeModelUrl("https://huggingface.co/model", null) {
+      throw javax.net.ssl.SSLHandshakeException("localized error")
+    }
+    assertFalse((tls as ModelUrlResult.Error).retryable)
+  }
+
+  @Test
+  fun cancellationIsNotConvertedIntoAnOrdinaryNetworkError() {
+    try {
+      probeModelUrl("https://huggingface.co/model", null) {
+        throw kotlinx.coroutines.CancellationException()
+      }
+      org.junit.Assert.fail("Expected cancellation")
+    } catch (_: kotlinx.coroutines.CancellationException) { }
+  }
 
   @Test
   fun redirectProbeBoundsBothConnections() {

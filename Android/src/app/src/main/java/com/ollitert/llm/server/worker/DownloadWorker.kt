@@ -40,6 +40,13 @@ import com.ollitert.llm.server.data.storage.DOWNLOAD_PROGRESS_UPDATE_INTERVAL_MS
 import com.ollitert.llm.server.data.prefs.DOWNLOAD_READ_TIMEOUT_MS
 import com.ollitert.llm.server.data.storage.DOWNLOAD_SPEED_ROLLING_BUFFER_SIZE
 import com.ollitert.llm.server.data.allowlist.isHuggingFaceUrl
+import com.ollitert.llm.server.data.download.modelScopeFallback
+import com.ollitert.llm.server.data.download.DownloadHttpException
+import com.ollitert.llm.server.data.prefs.ServerPrefs
+import com.ollitert.llm.server.data.storage.KEY_MODEL_MODELSCOPE_PRIMARY_ERROR
+import com.ollitert.llm.server.data.storage.KEY_MODEL_MODELSCOPE_CONSENT_ERROR
+import com.ollitert.llm.server.data.storage.KEY_MODEL_FROM_MODELSCOPE
+import com.ollitert.llm.server.data.storage.modelScopeStagingFile
 import com.ollitert.llm.server.data.storage.DOWNLOAD_UNZIP_BUFFER_SIZE
 import com.ollitert.llm.server.data.storage.KEY_MODEL_COMMIT_HASH
 import com.ollitert.llm.server.data.storage.KEY_MODEL_DOWNLOAD_ACCESS_TOKEN
@@ -128,8 +135,10 @@ class DownloadWorker(context: Context, params: WorkerParameters) :
       inputData.getString(KEY_MODEL_EXTRA_DATA_DOWNLOAD_FILE_NAMES)?.split(",") ?: listOf()
     val totalBytes = inputData.getLong(KEY_MODEL_TOTAL_BYTES, 0L)
     val accessToken = inputData.getString(KEY_MODEL_DOWNLOAD_ACCESS_TOKEN)
+    val modelScopePrimaryError = inputData.getString(KEY_MODEL_MODELSCOPE_PRIMARY_ERROR)
 
     return withContext(Dispatchers.IO) {
+      var fromModelScope = false
       if (fileUrl == null || fileName == null) {
         Result.failure()
       } else if (externalFilesDir == null) {
@@ -177,6 +186,59 @@ class DownloadWorker(context: Context, params: WorkerParameters) :
                   .joinToString(separator = File.separator),
               )
             createdTmpFiles.add(outputTmpFile)
+            val fallback = modelScopeFallback(file.url)?.takeIf {
+              !isZip && extraDataFileUrls.isEmpty() && it.sizeInBytes == totalBytes
+            }
+            if (fallback != null) {
+              createdTmpFiles.add(modelScopeStagingFile(outputTmpFile, fallback.sha256))
+              var lastProgressTime = 0L
+              var lastProgressBytes = 0L
+              var lastNotificationTime = 0L
+              val completeFile = ModelFileDownloader().download(
+                primaryUrl = file.url,
+                staging = outputTmpFile,
+                fallback = fallback,
+                fallbackEnabled = { ServerPrefs.isModelScopeFallbackEnabled(applicationContext) },
+                accessToken = accessToken,
+                primaryError = modelScopePrimaryError,
+              ) { received, mirror ->
+                val now = System.currentTimeMillis()
+                val sourceChanged = mirror != fromModelScope
+                if (sourceChanged) {
+                  Log.i(TAG, "Switching '$modelName' download to ModelScope")
+                  lastProgressTime = 0L
+                  lastProgressBytes = received
+                  fromModelScope = mirror
+                }
+                if (sourceChanged || now - lastProgressTime >= DOWNLOAD_PROGRESS_UPDATE_INTERVAL_MS ||
+                  received == totalBytes
+                ) {
+                  val rate = if (lastProgressTime > 0 && now > lastProgressTime) {
+                    ((received - lastProgressBytes).coerceAtLeast(0) * 1000 / (now - lastProgressTime))
+                  } else 0L
+                  setProgress(
+                    workDataOf(
+                      KEY_MODEL_DOWNLOAD_RECEIVED_BYTES to received,
+                      KEY_MODEL_DOWNLOAD_RATE to rate,
+                      KEY_MODEL_FROM_MODELSCOPE to mirror,
+                    ),
+                  )
+                  lastProgressTime = now
+                  lastProgressBytes = received
+                }
+                if (sourceChanged || now - lastNotificationTime >= DOWNLOAD_FOREGROUND_UPDATE_INTERVAL_MS) {
+                  setForeground(
+                    createForegroundInfo(
+                      progress = (received * 100 / totalBytes).toInt(),
+                      modelName = if (mirror) "$modelName (ModelScope)" else modelName,
+                    ),
+                  )
+                  lastNotificationTime = now
+                }
+              }
+              finalizeDownloadedFile(completeFile, File(outputDir, file.fileName))
+              continue
+            }
             val outputFileBytes = outputTmpFile.length()
 
             val connection = url.openConnection() as HttpURLConnection
@@ -378,9 +440,17 @@ class DownloadWorker(context: Context, params: WorkerParameters) :
               zipFile.delete()
             }
           }
-          Result.success()
+          Result.success(workDataOf(KEY_MODEL_FROM_MODELSCOPE to fromModelScope))
         } catch (e: CancellationException) {
           throw e
+        } catch (e: ModelScopeConsentRequiredException) {
+          Log.i(TAG, "ModelScope fallback requires consent: ${e.primaryError}")
+          Result.failure(
+            workDataOf(
+              KEY_MODEL_DOWNLOAD_ERROR_MESSAGE to applicationContext.getString(R.string.modelscope_consent_required),
+              KEY_MODEL_MODELSCOPE_CONSENT_ERROR to e.primaryError,
+            ),
+          )
         } catch (e: SecurityException) {
           Log.e(TAG, "Zip path traversal blocked: ${e.message}", e)
 
@@ -438,6 +508,13 @@ class DownloadWorker(context: Context, params: WorkerParameters) :
             applicationContext.getString(R.string.download_error_disk_full)
           } else {
             when (e) {
+              is ModelScopeDownloadException -> e.message.orEmpty()
+              is DownloadIntegrityException -> e.message.orEmpty()
+              is DownloadHttpException -> when (e.status) {
+                401, 403 -> applicationContext.getString(R.string.download_error_unauthorized)
+                404 -> applicationContext.getString(R.string.download_error_not_found)
+                else -> applicationContext.getString(R.string.download_error_server, e.status)
+              }
               is DownloadFinalizationException ->
                 applicationContext.getString(R.string.download_error_finalize)
               is HttpErrorException -> when {
@@ -455,7 +532,10 @@ class DownloadWorker(context: Context, params: WorkerParameters) :
           }
 
           Result.failure(
-            Data.Builder().putString(KEY_MODEL_DOWNLOAD_ERROR_MESSAGE, errorMessage).build()
+            Data.Builder()
+              .putString(KEY_MODEL_DOWNLOAD_ERROR_MESSAGE, errorMessage)
+              .putBoolean(KEY_MODEL_FROM_MODELSCOPE, fromModelScope)
+              .build()
           )
         } catch (e: Exception) {
           Log.e(TAG, "Unexpected error during download: ${e.message}", e)
