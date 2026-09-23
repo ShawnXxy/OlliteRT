@@ -56,8 +56,9 @@ and saved partial files cannot authorize a new mirror attempt.
 
 Authentication and license failures (401/403), missing files (404), certificate
 errors, cancellation, and storage failures do not trigger fallback. Hugging
-Face credentials are never forwarded to ModelScope or its CDN. Accepting
-fallback does not replace any model-license requirements.
+Face credentials are attached only to the initial Hugging Face request for
+these mapped downloads, never to redirects or ModelScope. Accepting fallback
+does not replace any model-license requirements.
 
 The ModelScope copies are community uploads. Downloads use fixed ModelScope
 revisions and must match their bundled size, LiteRT-LM header, and SHA-256
@@ -72,9 +73,14 @@ temporarily consume additional storage; the unused partial is removed when a
 download completes, along with obsolete checksum-specific partials for that
 same artifact. Cancellation removes the model's partial downloads.
 
+Saved progress prefers the Hugging Face partial when both sources have one.
+A mirror-only partial is labelled ModelScope; a new primary attempt resets
+progress to its own saved bytes, including zero, before connecting.
+
 Mappings are limited to the exact bundled Hugging Face revisions in
-`ModelScopeFallback.kt`. A catalog entry with a new revision, a custom URL, a
-ZIP, or extra data files does not inherit a fallback automatically. Endpoint
+`ModelScopeFallback.kt`, with no query string or only `?download=true`.
+A catalog entry with a new revision, another query string, a custom URL, a ZIP,
+or extra data files does not inherit a fallback automatically. Endpoint
 availability does not guarantee access from every network in China or
 successful inference on a particular phone.
 

@@ -98,6 +98,7 @@ internal class ModelFileDownloader(
         throw DownloadIntegrityException("Partial model exceeds the expected size")
       }
       val offset = staging.length()
+      onProgress(offset)
       val connection = connect(source, offset, token)
       try {
         val status = network { connection.responseCode }
@@ -155,7 +156,7 @@ internal class ModelFileDownloader(
 
   private suspend fun connect(source: String, offset: Long, token: String?): HttpURLConnection {
     var url = URL(source)
-    repeat(6) {
+    repeat(6) { redirectCount ->
       currentCoroutineContext().ensureActive()
       val connection = network { openConnection(url) }
       try {
@@ -164,7 +165,7 @@ internal class ModelFileDownloader(
         connection.readTimeout = DOWNLOAD_READ_TIMEOUT_MS
         connection.setRequestProperty("Accept-Encoding", "identity")
         if (offset > 0) connection.setRequestProperty("Range", "bytes=$offset-")
-        if (token != null && url.protocol == "https" && isHuggingFaceUrl(url.toString())) {
+        if (redirectCount == 0 && token != null && isHuggingFaceUrl(url.toString())) {
           connection.setRequestProperty("Authorization", "Bearer $token")
         }
         val status = network { connection.responseCode }

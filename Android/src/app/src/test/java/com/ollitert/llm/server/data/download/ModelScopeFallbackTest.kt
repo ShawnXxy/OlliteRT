@@ -46,6 +46,24 @@ class ModelScopeFallbackTest {
   }
 
   @Test
+  fun onlyTheCanonicalDownloadQueryCanSelectTheMirror() {
+    val canonical = gemmaUrl.substringBefore('?')
+    assertNotNull(modelScopeFallback(canonical))
+    assertNotNull(modelScopeFallback("$canonical?download=true"))
+    for (query in listOf(
+        "download=false",
+        "revision=main",
+        "download=true&revision=main",
+        "download=true&download=false",
+        "%64ownload=true",
+        "",
+      )
+    ) {
+      assertNull(query, modelScopeFallback("$canonical?$query"))
+    }
+  }
+
+  @Test
   fun onlyTransientHttpFailuresPermitFallback() {
     for (code in listOf(408, 429, 500, 502, 503, 504)) {
       assertTrue("$code should permit fallback", isTransientDownloadStatus(code))

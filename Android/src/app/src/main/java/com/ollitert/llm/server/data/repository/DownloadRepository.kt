@@ -187,7 +187,7 @@ class DownloadRepository @Inject constructor(
             val fromModelScope = workInfo.progress.getBoolean(KEY_MODEL_FROM_MODELSCOPE, false)
 
             if (!startUnzipping) {
-              if (receivedBytes != 0L || fromModelScope) {
+              if (workInfo.progress.keyValueMap.containsKey(KEY_MODEL_DOWNLOAD_RECEIVED_BYTES) || fromModelScope) {
                 lastReceivedBytes = receivedBytes
                 lastTotalBytes = totalDownloadBytes
                 onStatusUpdated(

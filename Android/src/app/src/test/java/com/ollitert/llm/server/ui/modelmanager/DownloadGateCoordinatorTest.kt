@@ -111,6 +111,18 @@ class DownloadGateCoordinatorTest {
   }
 
   @Test
+  fun noncanonicalQueryDoesNotOfferOrStartPreflightFallback() = runTest {
+    val model = mirroredModel.copy(url = "${mirroredModel.url}?download=false")
+    for (consent in listOf(false, true)) {
+      val gate = coordinator(
+        probe = { _, _ -> ModelUrlResult.Error("offline", retryable = true) },
+        fallbackEnabled = consent,
+      )
+      assertEquals(DownloadGateOutcome.NetworkError("offline"), gate.resolveDownloadAccess(model))
+    }
+  }
+
+  @Test
   fun eligibleFailureRequiresConsentByDefault() = runTest {
     val gate = coordinator(probe = { _, _ -> ModelUrlResult.Error("offline", retryable = true) })
     assertEquals(

@@ -136,5 +136,6 @@ class ModelStorageRepositoryTest {
 
     assertEquals(ModelDownloadStatusType.PARTIALLY_DOWNLOADED, reloaded.status)
     assertEquals(16L, reloaded.receivedBytes)
+    assertTrue(reloaded.fromModelScope)
   }
 }

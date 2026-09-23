@@ -76,7 +76,8 @@ internal fun modelScopeFallback(primaryUrl: String): ModelScopeFallback? {
     return null
   }
   if (uri.scheme != "https" || uri.host != "huggingface.co" ||
-    uri.userInfo != null || uri.port !in listOf(-1, 443)
+    uri.userInfo != null || uri.port !in listOf(-1, 443) ||
+    uri.rawQuery !in listOf(null, "download=true")
   ) return null
   val artifact = artifacts.firstOrNull {
     uri.rawPath == "/${it.repository}/resolve/${it.primaryRevision}/${it.file}"

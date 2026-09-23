@@ -80,6 +80,53 @@ class ModelFileDownloaderTest {
   }
 
   @Test
+  fun huggingFaceRedirectRequestsDoNotReceivePrimaryCredentials() = runTest {
+    for (redirectUrl in listOf(
+        "https://cdn-lfs.huggingface.co/model",
+        "https://huggingface.co/redirected/model",
+      )
+    ) {
+      lateinit var primaryRequest: Response
+      lateinit var redirectRequest: Response
+      val downloader = ModelFileDownloader { url ->
+        if (url.toString() == primary) {
+          Response(url, byteArrayOf(), 302, mapOf("Location" to redirectUrl))
+            .also { primaryRequest = it }
+        } else {
+          Response(url, bytes).also { redirectRequest = it }
+        }
+      }
+      val staging = File(temp.newFolder(), "model.olliterttmp")
+
+      val result = downloader.download(primary, staging, mirror, { true }, accessToken = "test-token")
+
+      assertArrayEquals(bytes, result.readBytes())
+      assertEquals("Bearer test-token", primaryRequest.getRequestProperty("Authorization"))
+      assertNull(redirectUrl, redirectRequest.getRequestProperty("Authorization"))
+    }
+  }
+
+  @Test
+  fun redirectingBackToThePrimaryDoesNotReattachCredentials() = runTest {
+    val requests = mutableListOf<Response>()
+    val cdn = "https://cdn-lfs.huggingface.co/model"
+    val downloader = ModelFileDownloader { url ->
+      when (requests.size) {
+        0 -> Response(url, byteArrayOf(), 302, mapOf("Location" to cdn))
+        1 -> Response(url, byteArrayOf(), 302, mapOf("Location" to primary))
+        else -> Response(url, bytes)
+      }.also { requests.add(it) }
+    }
+
+    val result = downloader.download(primary, staging(), mirror, { true }, accessToken = "test-token")
+
+    assertArrayEquals(bytes, result.readBytes())
+    assertEquals(listOf(primary, cdn, primary), requests.map { it.url.toString() })
+    assertEquals("Bearer test-token", requests.first().getRequestProperty("Authorization"))
+    assertTrue(requests.drop(1).all { it.getRequestProperty("Authorization") == null })
+  }
+
+  @Test
   fun successRemovesObsoleteMirrorPartialsButPreservesOtherFiles() = runTest {
     val staging = staging()
     val obsolete = modelScopeStagingFile(staging, "0".repeat(64)).apply { writeText("old partial") }
