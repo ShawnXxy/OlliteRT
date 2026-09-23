@@ -50,7 +50,7 @@ class ModelAllowlistJsonTest {
       ),
     )
 
-    val model = allowedModel.toModel()
+    val model = allowedModel.toModel(soc = "unknown")
 
     assertEquals("generic.litertlm", model.downloadFileName)
     assertEquals("generic-revision", model.version)

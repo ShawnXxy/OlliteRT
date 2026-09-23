@@ -132,7 +132,10 @@ Do not promote Android 11 support from experimental until these checks succeed:
    SoC is intentional: board names are not used to guess NPU compatibility.
 2. Download or import a small **CPU-capable text model**, such as Gemma 3 1B.
    Select **CPU** explicitly and start with a small context, such as 1024 tokens.
-   Confirm a background download completes and the server notification appears.
+   With notifications enabled, confirm a background download completes and its
+   completion notification appears, then confirm the server notification appears.
+   On API 30/31/32, also confirm the download completes with notifications disabled;
+   no visible notification is required in that case.
 3. Confirm `/health`, `/v1/models`, and both non-streaming and streaming
    `/v1/chat/completions` requests work. Exercise cancellation, stop/restart,
    model reload, and screen-off/background serving.

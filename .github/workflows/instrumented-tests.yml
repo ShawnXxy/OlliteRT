@@ -5,10 +5,12 @@ on:
     branches: [main]
     paths:
       - 'Android/src/**'
+      - 'model_allowlists/**'
       - '.github/workflows/instrumented-tests.yml'
   pull_request:
     paths:
       - 'Android/src/**'
+      - 'model_allowlists/**'
       - '.github/workflows/instrumented-tests.yml'
   workflow_dispatch:
 
