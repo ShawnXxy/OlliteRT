@@ -57,6 +57,7 @@ import androidx.work.WorkInfo
 import androidx.work.WorkManager
 import com.ollitert.llm.server.OlliteRTLifecycleProvider
 import com.ollitert.llm.server.R
+import com.ollitert.llm.server.common.supportsRuntimeNotificationPermission
 import com.ollitert.llm.server.worker.DownloadWorker
 import java.util.UUID
 import java.util.concurrent.Executors
@@ -264,7 +265,7 @@ class DownloadRepository @Inject constructor(
     val channelId = "download_notification"
     val channelName = context.getString(R.string.notif_channel_download_name)
 
-    // Create the NotificationChannel (always available since minSdk 31)
+    // Notification channels are available on all supported Android versions.
     val importance = NotificationManager.IMPORTANCE_HIGH
     val channel = NotificationChannel(channelId, channelName, importance)
     val notificationManager =
@@ -299,10 +300,11 @@ class DownloadRepository @Inject constructor(
 
     with(NotificationManagerCompat.from(context)) {
       if (
+        supportsRuntimeNotificationPermission() &&
         ActivityCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) !=
           PackageManager.PERMISSION_GRANTED
       ) {
-        // POST_NOTIFICATIONS not granted -- notification silently suppressed
+        Log.i(TAG, "Download notification not posted: POST_NOTIFICATIONS denied")
         return
       }
       notify(1, builder.build())
